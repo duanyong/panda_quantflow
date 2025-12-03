@@ -1,8 +1,5 @@
 import pymongo
-import logging
-
 import urllib.parse
-import os
 
 class DatabaseHandler:
     _instance = None
@@ -19,57 +16,40 @@ class DatabaseHandler:
             encoded_password = urllib.parse.quote_plus(config["MONGO_PASSWORD"])
 
             # 构建连接字符串
-            MONGO_URI = f'mongodb://{config["MONGO_USER"]}:{encoded_password}@{config["MONGO_URI"]}/{config["MONGO_AUTH_DB"]}'
-            if (config['MONGO_TYPE']=='standalone'):
-                self.mongo_client = pymongo.MongoClient(
-                    MONGO_URI,
-                    readPreference='secondaryPreferred',  # 优先从从节点读取
-                    w='majority',  # 写入确认级别
-                    retryWrites=True,  # 自动重试写操作
-                    socketTimeoutMS=30000,  # 套接字超时时间
-                    connectTimeoutMS=20000,  # 连接超时时间
-                    serverSelectionTimeoutMS=30000,  # 服务器选择超时时间
-                    authSource=config["MONGO_AUTH_DB"],  # 明确指定认证数据库
-                )
-            elif (config['MONGO_TYPE']=='replica_set'):
-                MONGO_URI += f'?replicaSet={config["MONGO_REPLICA_SET"]}'
-                self.mongo_client = pymongo.MongoClient(
-                    MONGO_URI,
-                    readPreference='secondaryPreferred',  # 优先从从节点读取
-                    w='majority',  # 写入确认级别
-                    retryWrites=True,  # 自动重试写操作
-                    socketTimeoutMS=30000,  # 套接字超时时间
-                    connectTimeoutMS=20000,  # 连接超时时间
-                    serverSelectionTimeoutMS=30000,  # 服务器选择超时时间
-                    authSource=config["MONGO_AUTH_DB"],  # 明确指定认证数据库
-                )
+            mongo_uri = f'mongodb://{config["MONGO_USER"]}:{encoded_password}@{config["MONGO_URI"]}/{config["MONGO_AUTH_DB"]}'
+            
+            client_kwargs = {
+                'readPreference': 'secondaryPreferred',
+                'w': 'majority',
+                'retryWrites': True,
+                'socketTimeoutMS': 30000,
+                'connectTimeoutMS': 20000,
+                'serverSelectionTimeoutMS': 30000,
+                'authSource': config["MONGO_AUTH_DB"],
+            }
+
+            if config['MONGO_TYPE'] == 'standalone':
+                client_kwargs['directConnection'] = True
+                self.mongo_client = pymongo.MongoClient(mongo_uri, **client_kwargs)
+            elif config['MONGO_TYPE'] == 'replica_set':
+                mongo_uri += f'?replicaSet={config["MONGO_REPLICA_SET"]}'
+                client_kwargs['heartbeatFrequencyMS'] = 10000
+                self.mongo_client = pymongo.MongoClient(mongo_uri, **client_kwargs)
 
             # 打印连接字符串，但隐藏密码
-            masked_uri = MONGO_URI
-            masked_uri = masked_uri.replace(urllib.parse.quote_plus(config["MONGO_PASSWORD"]), "****")
+            masked_uri = mongo_uri.replace(urllib.parse.quote_plus(config["MONGO_PASSWORD"]), "****")
             # 测试连接是否成功
             try:
-                # 发送 ping 命令到数据库
+                # 发送 ping 命令到应用数据库
                 self.mongo_client.admin.command('ping')
                 print(f"Connecting to MongoDB: {masked_uri}")
+                self.initialized = True
             except Exception as e:
                 print(f"MongoDB connection failed: {e}")
+                if hasattr(self, 'mongo_client') and self.mongo_client:
+                    self.mongo_client.close()
+                self.mongo_client = None
                 raise
-            
-            # 有需要再放开
-            # self.mysql_conn = mysql.connector.connect(
-            #     host=config.MYSQL_HOST,
-            #     user=config.MYSQL_USER,
-            #     password=config.MYSQL_PASSWORD,
-            #     database=config.MYSQL_DATABASE
-            # )
-            # self.redis_client.py = redis.StrictRedis(
-            #     host=config.REDIS_HOST,
-            #     port=config.REDIS_PORT,
-            #     password=config.REDIS_PASSWORD,
-            #     decode_responses=True
-            # )
-            self.initialized = True
 
     def mongo_insert(self, db_name, collection_name, document):
         collection = self.get_mongo_collection(db_name, collection_name)
@@ -101,6 +81,7 @@ class DatabaseHandler:
     def mongo_update(self, db_name, collection_name, query, update):
         collection = self.get_mongo_collection(db_name, collection_name)
         return collection.update_many(query, {'$set': update}).modified_count
+
     def mongo_update_one(self, db_name, collection_name, query, update, upsert=False, **kwargs):
         collection = self.get_mongo_collection(db_name, collection_name)
         return collection.update_many(
@@ -142,7 +123,8 @@ class DatabaseHandler:
             collection_name: Collection name
             query: Query dictionary
             hint: Optional index hint
-            project: Optional projection dictionary to specify fields to include/exclude
+            projection: Optional projection dictionary to specify fields to include/exclude
+            sort: Optional sort specification
 
         Returns:
             Single document or None if not found

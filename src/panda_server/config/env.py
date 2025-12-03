@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # 运行模式: LOCAL 为用户本地运行, CLOUD 为 PandAaI 官网运行
 RUN_MODE = os.getenv("RUN_MODE", "LOCAL")
