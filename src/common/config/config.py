@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 # 初始化配置变量
 config = None
 
+# Load .env file if exsits
+import dotenv
+dotenv.load_dotenv()
 
 def load_config():
     """加载配置文件，并从环境变量更新配置"""

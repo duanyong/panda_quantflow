@@ -20,7 +20,7 @@ class DatabaseHandler:
 
             # 构建连接字符串
             MONGO_URI = f'mongodb://{config["MONGO_USER"]}:{encoded_password}@{config["MONGO_URI"]}/{config["MONGO_AUTH_DB"]}'
-            if (config['MONGO_TYPE']=='single'):
+            if (config['MONGO_TYPE']=='standalone'):
                 self.mongo_client = pymongo.MongoClient(
                     MONGO_URI,
                     readPreference='secondaryPreferred',  # 优先从从节点读取

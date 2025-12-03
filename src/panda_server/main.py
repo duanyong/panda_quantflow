@@ -29,10 +29,6 @@ from panda_server.routes.trading import (
 # Add project root path to python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))  
 
-# Load .env file if exsits
-import dotenv
-dotenv.load_dotenv()
-
 logger = logging.getLogger(__name__)
 
 # 获取当前文件所在目录的父目录的父目录（即项目根目录）
