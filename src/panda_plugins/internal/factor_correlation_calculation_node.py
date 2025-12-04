@@ -17,7 +17,8 @@ import warnings
 
 import uuid
 from datetime import datetime
-from panda_factor.analysis.factor_correlation_workflow import factor_correlation_workflow
+# 修正导入语句
+from panda_factor.analysis.factor_analysis_workflow import factor_analysis_workflow
 logger = logging.getLogger(__name__)
 
 @ui(
@@ -60,7 +61,8 @@ class FactorCorrelationCalculationControl(BaseWorkNode):
 
     def run(self, input: BaseModel) -> BaseModel:
         df_factor=input.factor
-        task_id = factor_correlation_workflow(df_factor)
+        # 注意：这里调用的函数名也可能需要修改，我们假设它与模块名一致
+        task_id = factor_analysis_workflow(df_factor)
 
         return FactorCorrelationOutputModel(task_id=str(task_id))
         
