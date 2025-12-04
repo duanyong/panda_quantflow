@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 
 # 获取当前文件所在目录的父目录的父目录（即项目根目录）
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-print("base_dir:" + str(BASE_DIR))
 
 # 将项目根目录下的 src 目录加入模块搜索路径
 sys.path.append(str(BASE_DIR / "src"))

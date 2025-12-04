@@ -4,6 +4,7 @@
 """
 
 import os
+import dotenv
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,7 +13,6 @@ logger = logging.getLogger(__name__)
 config = None
 
 # Load .env file if exsits
-import dotenv
 dotenv.load_dotenv()
 
 def load_config():

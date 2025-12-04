@@ -1,5 +1,6 @@
 import pymongo
 import urllib.parse
+import sys
 
 class DatabaseHandler:
     _instance = None
@@ -10,14 +11,20 @@ class DatabaseHandler:
         return cls._instance
 
     def __init__(self, config):
-        if not hasattr(self, 'initialized'):  # Prevent re-initialization
-            self.DEFAULT_MONGO_DB = config['MONGO_DB']
-            # 对密码进行URL编码，避免特殊字符导致的认证问题
-            encoded_password = urllib.parse.quote_plus(config["MONGO_PASSWORD"])
+        # 如果已经初始化过，就直接返回，避免重复连接
+        if hasattr(self, 'initialized') and self.initialized:
+            return
 
-            # 构建连接字符串
-            mongo_uri = f'mongodb://{config["MONGO_USER"]}:{encoded_password}@{config["MONGO_URI"]}/{config["MONGO_AUTH_DB"]}'
+        self.config = config
+        self.DEFAULT_MONGO_DB = config['MONGO_DB']
+        self.mongo_client = None  # 先确保属性存在并为 None
+
+        try:
+            # 1. 构建连接字符串
+            encoded_password = urllib.parse.quote_plus(config["MONGO_PASSWORD"])
+            mongo_uri = f'mongodb://{config["MONGO_USER"]}:{encoded_password}@{config["MONGO_URI"]}/{config["MONGO_DB"]}'
             
+            # 2. 准备连接参数
             client_kwargs = {
                 'readPreference': 'secondaryPreferred',
                 'w': 'majority',
@@ -30,26 +37,33 @@ class DatabaseHandler:
 
             if config['MONGO_TYPE'] == 'standalone':
                 client_kwargs['directConnection'] = True
-                self.mongo_client = pymongo.MongoClient(mongo_uri, **client_kwargs)
             elif config['MONGO_TYPE'] == 'replica_set':
                 mongo_uri += f'?replicaSet={config["MONGO_REPLICA_SET"]}'
                 client_kwargs['heartbeatFrequencyMS'] = 10000
-                self.mongo_client = pymongo.MongoClient(mongo_uri, **client_kwargs)
 
-            # 打印连接字符串，但隐藏密码
-            masked_uri = mongo_uri.replace(urllib.parse.quote_plus(config["MONGO_PASSWORD"]), "****")
-            # 测试连接是否成功
-            try:
-                # 发送 ping 命令到应用数据库
-                self.mongo_client.admin.command('ping')
-                print(f"Connecting to MongoDB: {masked_uri}")
-                self.initialized = True
-            except Exception as e:
-                print(f"MongoDB connection failed: {e}")
-                if hasattr(self, 'mongo_client') and self.mongo_client:
-                    self.mongo_client.close()
-                self.mongo_client = None
-                raise
+            # 3. 打印屏蔽了密码的 URI，用于调试
+            masked_uri = mongo_uri.replace(encoded_password, "****")
+            print(f"Attempting to connect to MongoDB: {masked_uri}")
+
+            # 4. 尝试连接并创建客户端
+            self.mongo_client = pymongo.MongoClient(mongo_uri, **client_kwargs)
+
+            # 5. 发送 ping 命令以验证连接
+            self.mongo_client.admin.command('ping')
+            
+            print("MongoDB connection successful.")
+            self.initialized = True
+
+        except Exception as e:
+            # 6. 如果以上任何一步失败，都会进入这里
+            print(f"FATAL: MongoDB connection failed. Reason: {e}", file=sys.stderr)
+            
+            # 关闭可能已部分创建的连接
+            if self.mongo_client:
+                self.mongo_client.close()
+            
+            # 抛出异常，终止程序启动
+            raise ConnectionError("Could not connect to MongoDB. Application cannot start.") from e
 
     def mongo_insert(self, db_name, collection_name, document):
         collection = self.get_mongo_collection(db_name, collection_name)
