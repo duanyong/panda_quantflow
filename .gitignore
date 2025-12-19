@@ -170,7 +170,7 @@ cython_debug/
 .DS_Store
 
 # user data
-user_data/*
+*/user_data/*
 !user_data/.gitkeep
 
 # only development team files
